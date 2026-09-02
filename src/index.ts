@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { createServer } from 'http';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -11,6 +12,9 @@ import { analytics } from './analytics';
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
+
+  // Enable CORS for all origins (required for Claude Web MCP client)
+  app.use(cors());
 
   // We need to parse JSON body for the /mcp/messages POST requests
   app.use(express.json());
