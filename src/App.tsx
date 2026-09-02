@@ -60,8 +60,8 @@ export default function App() {
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-100">
-              <p className="text-neutral-500 font-medium mb-1">MCP Endpoint (SSE)</p>
-              <code className="text-neutral-800 bg-neutral-200/50 px-2 py-0.5 rounded">/mcp/sse</code>
+              <p className="text-neutral-500 font-medium mb-1">MCP Endpoint (Streamable HTTP)</p>
+              <code className="text-neutral-800 bg-neutral-200/50 px-2 py-0.5 rounded">/mcp</code>
             </div>
             <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-100">
               <p className="text-neutral-500 font-medium mb-1">Android WS Endpoint</p>
