@@ -1,5 +1,24 @@
 export const tools = [
   {
+    name: "device.list",
+    description: "Returns a list of all currently connected Android devices and their deviceIds. Use this to find the correct deviceId.",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
+    name: "notifications.get_unread",
+    description: "Fetches all unread Android notifications from the device",
+    inputSchema: {
+      type: "object",
+      properties: {
+        deviceId: { type: "string", description: "The ID of the target Android device" }
+      },
+      required: ["deviceId"]
+    }
+  },
+  {
     name: "whatsapp.send_message",
     description: "Takes a contact name and message string to send via WhatsApp",
     inputSchema: {

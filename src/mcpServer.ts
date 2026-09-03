@@ -32,6 +32,14 @@ export function setupMcpServer(app: Express) {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     
+    if (name === 'device.list') {
+      const devices = bridge.getConnectedDevices();
+      return {
+        content: [{ type: "text", text: JSON.stringify(devices, null, 2) }],
+        isError: false,
+      };
+    }
+
     if (!args || typeof args !== 'object' || !('deviceId' in args) || typeof args.deviceId !== 'string') {
       throw new Error("deviceId is required in arguments");
     }
