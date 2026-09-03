@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 import { analytics } from './analytics';
 
 export interface DeviceProfile {
+  secretId?: string;
   deviceId: string;
   name?: string;
   os?: string;

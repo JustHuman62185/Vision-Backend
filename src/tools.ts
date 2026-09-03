@@ -1,40 +1,5 @@
 export const tools = [
   {
-    name: "device.get_info",
-    description: "Returns battery, OS, and network state for the specified device",
-    inputSchema: {
-      type: "object",
-      properties: {
-        deviceId: { type: "string", description: "The ID of the target Android device" }
-      },
-      required: ["deviceId"]
-    }
-  },
-  {
-    name: "notifications.get_unread",
-    description: "Fetches unread Android notifications",
-    inputSchema: {
-      type: "object",
-      properties: {
-        deviceId: { type: "string", description: "The ID of the target Android device" }
-      },
-      required: ["deviceId"]
-    }
-  },
-  {
-    name: "phone.tap",
-    description: "Takes x,y coordinates to tap the screen",
-    inputSchema: {
-      type: "object",
-      properties: {
-        deviceId: { type: "string", description: "The ID of the target Android device" },
-        x: { type: "number", description: "The X coordinate to tap" },
-        y: { type: "number", description: "The Y coordinate to tap" }
-      },
-      required: ["deviceId", "x", "y"]
-    }
-  },
-  {
     name: "whatsapp.send_message",
     description: "Takes a contact name and message string to send via WhatsApp",
     inputSchema: {
@@ -45,6 +10,35 @@ export const tools = [
         message: { type: "string", description: "The message to send" }
       },
       required: ["deviceId", "contactName", "message"]
+    }
+  },
+  {
+    name: "phone.tap",
+    description: "Takes x,y coordinates, text, or contentDescription to tap the screen",
+    inputSchema: {
+      type: "object",
+      properties: {
+        deviceId: { type: "string", description: "The ID of the target Android device" },
+        x: { type: "number", description: "The X coordinate to tap" },
+        y: { type: "number", description: "The Y coordinate to tap" },
+        text: { type: "string", description: "The text of the element to tap" },
+        contentDescription: { type: "string", description: "The content description of the element to tap" }
+      },
+      required: ["deviceId"]
+    }
+  },
+  {
+    name: "phone.notification",
+    description: "Takes an action, id, and optional replyText to interact with a notification",
+    inputSchema: {
+      type: "object",
+      properties: {
+        deviceId: { type: "string", description: "The ID of the target Android device" },
+        action: { type: "string", enum: ["read", "dismiss", "reply"], description: "The action to perform" },
+        id: { type: "string", description: "The ID of the notification" },
+        replyText: { type: "string", description: "The text to reply with, if action is reply" }
+      },
+      required: ["deviceId", "action", "id"]
     }
   }
 ];
