@@ -88,6 +88,21 @@ export const tools = [
     },
   },
   {
+    name: "phone.swipe",
+    description: "Executes a physical swipe/drag gesture on the screen from a starting point to an ending point. Useful for 360-degree scrolling, swiping left/right, or dragging and dropping.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        startX: { type: "number", description: "The X coordinate where the swipe begins" },
+        startY: { type: "number", description: "The Y coordinate where the swipe begins" },
+        endX: { type: "number", description: "The X coordinate where the swipe ends" },
+        endY: { type: "number", description: "The Y coordinate where the swipe ends" },
+        duration: { type: "number", description: "The duration of the swipe in milliseconds (default: 500)" },
+      },
+      required: ["startX", "startY", "endX", "endY"],
+    },
+  },
+  {
     name: "phone.back",
     description: "Presses the Android system back button.",
     inputSchema: { type: "object", properties: {} },

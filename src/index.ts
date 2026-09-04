@@ -27,6 +27,12 @@ async function startServer() {
     res.json({ devices: bridge.getConnectedDevices() });
   });
 
+  // Debug API to view raw tools schema
+  app.get("/api/tools", async (req, res) => {
+    const { tools } = await import('./tools');
+    res.json({ tools });
+  });
+
   // Analytics REST API
   app.get("/api/analytics", (req, res) => {
     res.json(analytics.getSummary());
