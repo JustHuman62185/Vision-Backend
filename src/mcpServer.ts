@@ -43,9 +43,9 @@ export function setupMcpServer(app: Express) {
       };
     }
 
-    const deviceId = deviceContext.getStore();
+    const deviceId = deviceContext.getStore() || (activeDevices.size > 0 ? activeDevices.keys().next().value : null);
     if (!deviceId) {
-      throw new Error("No deviceId found in the MCP HTTP request context (missing in URL query parameter).");
+      throw new Error("No deviceId found and no devices currently connected.");
     }
 
     try {
