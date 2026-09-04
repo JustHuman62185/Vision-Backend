@@ -49,6 +49,18 @@ export function setupMcpServer(app: Express) {
       }
 
       try {
+        if (name === "phone.screenshot") {
+          const result = await bridge.executeOnDevice(deviceId, name, args);
+          return {
+            content: [{
+              type: "image",
+              data: result,
+              mimeType: "image/jpeg",
+            }],
+            isError: false,
+          };
+        }
+
         const result = await bridge.executeOnDevice(deviceId, name, args);
         return {
           content: [{

@@ -1,56 +1,100 @@
 export const tools = [
   {
     name: "device.list",
-    description: "Returns a list of all currently connected Android devices and their deviceIds. Use this to find the correct deviceId.",
-    inputSchema: {
-      type: "object",
-      properties: {}
-    }
+    description: "Returns a list of all currently connected Android devices and their deviceIds.",
+    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "notifications.get_unread",
-    description: "Fetches all unread Android notifications from the device",
-    inputSchema: {
-      type: "object",
-      properties: {}
-    }
-  },
-  {
-    name: "whatsapp.send_message",
-    description: "Takes a contact name and message string to send via WhatsApp",
-    inputSchema: {
-      type: "object",
-      properties: {
-        contactName: { type: "string", description: "The name of the contact" },
-        message: { type: "string", description: "The message to send" }
-      },
-      required: ["contactName", "message"]
-    }
-  },
-  {
-    name: "phone.tap",
-    description: "Takes x,y coordinates, text, or contentDescription to tap the screen",
-    inputSchema: {
-      type: "object",
-      properties: {
-        x: { type: "number", description: "The X coordinate to tap" },
-        y: { type: "number", description: "The Y coordinate to tap" },
-        text: { type: "string", description: "The text of the element to tap" },
-        contentDescription: { type: "string", description: "The content description of the element to tap" }
-      }
-    }
+    description: "Fetches all unread Android notifications from the device.",
+    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "phone.notification",
-    description: "Takes an action, id, and optional replyText to interact with a notification",
+    description: "Takes an action, id, and optional replyText to interact with a notification.",
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["read", "dismiss", "reply"], description: "The action to perform" },
-        id: { type: "string", description: "The ID of the notification" },
-        replyText: { type: "string", description: "The text to reply with, if action is reply" }
+        action: { type: "string", enum: ["dismiss", "reply", "open"] },
+        id: { type: "string" },
+        replyText: { type: "string" },
       },
-      required: ["action", "id"]
-    }
-  }
+      required: ["action", "id"],
+    },
+  },
+  {
+    name: "phone.screenshot",
+    description: "Captures a screenshot of the current Android device screen and returns it as a Base64 JPEG string.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "phone.open_app",
+    description: "Launches an Android application.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        packageName: { type: "string", description: "e.g. com.whatsapp" },
+      },
+      required: ["packageName"],
+    },
+  },
+  {
+    name: "phone.tap",
+    description: "Taps the screen by text, contentDescription, or exact coordinates.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string" },
+        contentDescription: { type: "string" },
+        x: { type: "number" },
+        y: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "phone.tap_sequence",
+    description: "Executes a rapid sequence of physical screen taps in one single operation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sequence: {
+          type: "string",
+          description: "Stringified JSON array of tap objects e.g. [{\"x\":120,\"y\":500},{\"x\":450,\"y\":600}]",
+        },
+      },
+      required: ["sequence"],
+    },
+  },
+  {
+    name: "phone.type",
+    description: "Instantly types a full string of text into the currently focused input field.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "phone.scroll",
+    description: "Scrolls the screen.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        direction: { type: "string", enum: ["forward", "backward", "up", "down"] },
+      },
+      required: ["direction"],
+    },
+  },
+  {
+    name: "phone.back",
+    description: "Presses the Android system back button.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "phone.home",
+    description: "Presses the Android system home button.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
