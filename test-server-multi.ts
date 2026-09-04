@@ -1,20 +1,22 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from 'express';
+import { randomUUID } from "node:crypto";
 
 const app = express();
-const server = new Server({ name: "test", version: "1" }, { capabilities: {} });
+app.use(express.json());
 
+const server = new Server({ name: "test", version: "1" }, { capabilities: {} });
+const transport = new StreamableHTTPServerTransport({
+  sessionIdGenerator: () => randomUUID()
+});
+server.connect(transport).then(() => console.log('Connected transport'));
+
+app.post("/mcp", async (req, res) => {
+  await transport.handleRequest(req, res, req.body);
+});
 app.get("/mcp", async (req, res) => {
-  try {
-    console.log('Connecting new transport');
-    const transport = new SSEServerTransport("/mcp/message", res);
-    await server.connect(transport);
-    console.log('Connected');
-  } catch (err) {
-    console.error('Error in connect:', err.message);
-    res.status(500).send(err.message);
-  }
+  await transport.handleRequest(req, res);
 });
 
 app.listen(3002, () => console.log('Listening 3002'));
