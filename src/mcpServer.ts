@@ -7,8 +7,11 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { Express } from "express";
 import { randomUUID } from "node:crypto";
-import { bridge } from "./bridge";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { bridge, activeDevices } from "./bridge";
 import { tools } from "./tools";
+
+export const deviceContext = new AsyncLocalStorage<string>();
 
 export function setupMcpServer(app: Express) {
   const server = new Server(
@@ -40,11 +43,10 @@ export function setupMcpServer(app: Express) {
       };
     }
 
-    if (!args || typeof args !== 'object' || !('deviceId' in args) || typeof args.deviceId !== 'string') {
-      throw new Error("deviceId is required in arguments");
+    const deviceId = deviceContext.getStore();
+    if (!deviceId) {
+      throw new Error("No deviceId found in the MCP HTTP request context (missing in URL query parameter).");
     }
-    
-    const deviceId = args.deviceId;
 
     try {
       const result = await bridge.executeOnDevice(deviceId, name, args);
@@ -61,6 +63,25 @@ export function setupMcpServer(app: Express) {
   });
 
   const transports: Record<string, StreamableHTTPServerTransport> = {};
+  const sessionToDevice = new Map<string, string>();
+
+  app.use("/mcp", (req, res, next) => {
+    let deviceId = req.query.deviceId as string | undefined;
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+    // Track the association between the StreamableHTTP session and the deviceId
+    if (deviceId && sessionId) {
+      sessionToDevice.set(sessionId, deviceId);
+    } else if (!deviceId && sessionId) {
+      deviceId = sessionToDevice.get(sessionId);
+    }
+
+    if (deviceId) {
+      deviceContext.run(deviceId, next);
+    } else {
+      deviceContext.run('', next);
+    }
+  });
 
   app.post("/mcp", async (req, res) => {
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -75,6 +96,11 @@ export function setupMcpServer(app: Express) {
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid: string) => {
             transports[sid] = transport;
+            // Also store initial association if we have deviceId during initialization
+            const initDeviceId = req.query.deviceId as string | undefined;
+            if (initDeviceId) {
+              sessionToDevice.set(sid, initDeviceId);
+            }
           }
         });
         
@@ -82,6 +108,7 @@ export function setupMcpServer(app: Express) {
           const sid = transport.sessionId;
           if (sid && transports[sid]) {
             delete transports[sid];
+            sessionToDevice.delete(sid);
           }
         };
 

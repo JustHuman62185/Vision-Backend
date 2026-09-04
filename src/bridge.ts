@@ -1,23 +1,10 @@
 import { WebSocket } from 'ws';
 import { analytics } from './analytics';
 
-export interface DeviceProfile {
-  secretId?: string;
-  deviceId: string;
-  name?: string;
-  os?: string;
-  ip?: string;
-  capabilities?: string[];
-}
-
-interface ConnectedDevice extends DeviceProfile {
-  ws: WebSocket;
-}
+export const activeDevices = new Map<string, WebSocket>();
+export const pendingToolCalls = new Map<string, { resolve: (result: any) => void, reject: (err: any) => void, timeout: NodeJS.Timeout }>();
 
 export class Bridge {
-  private connections = new Map<string, ConnectedDevice>();
-  private pendingRequests = new Map<string, { resolve: (val: any) => void; reject: (err: any) => void; timeout: NodeJS.Timeout; startTime: number }>();
-
   constructor() {
     setInterval(() => {
       if (analytics.checkAndResetActivity()) {
@@ -26,72 +13,70 @@ export class Bridge {
     }, 2000);
   }
 
-  registerDevice(profile: DeviceProfile, ws: WebSocket) {
-    this.connections.set(profile.deviceId, { ...profile, ws });
-    console.log(`Device registered: ${profile.deviceId} (${profile.name || 'Unknown'})`);
+  registerDevice(deviceId: string, ws: WebSocket) {
+    activeDevices.set(deviceId, ws);
+    console.log(`Device registered: ${deviceId}`);
 
     ws.on('close', () => {
-      if (this.connections.get(profile.deviceId)?.ws === ws) {
-        this.connections.delete(profile.deviceId);
-        console.log(`Device disconnected: ${profile.deviceId}`);
+      if (activeDevices.get(deviceId) === ws) {
+        activeDevices.delete(deviceId);
+        console.log(`Device disconnected: ${deviceId}`);
       }
     });
   }
 
   handleMessage(deviceId: string, data: any, rawBytes: number = 0) {
     if (data.type === 'tool_result' && data.id) {
-      const req = this.pendingRequests.get(data.id);
-      if (req) {
-        clearTimeout(req.timeout);
-        const latency = Date.now() - req.startTime;
-        analytics.recordSuccess(latency, rawBytes);
-        req.resolve(data.result);
-        this.pendingRequests.delete(data.id);
-        this.broadcastAnalytics();
+      const pending = pendingToolCalls.get(data.id);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        pending.resolve(data.result);
+        pendingToolCalls.delete(data.id);
       }
     } else if (data.type === 'tool_error' && data.id) {
-      const req = this.pendingRequests.get(data.id);
-      if (req) {
-        clearTimeout(req.timeout);
-        analytics.recordError(rawBytes);
-        req.reject(new Error(data.error || 'Unknown error from device'));
-        this.pendingRequests.delete(data.id);
-        this.broadcastAnalytics();
+      const pending = pendingToolCalls.get(data.id);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        pending.reject(new Error(data.error || 'Unknown error from device'));
+        pendingToolCalls.delete(data.id);
       }
     }
   }
 
   async executeOnDevice(deviceId: string, toolName: string, args: any): Promise<any> {
-    const device = this.connections.get(deviceId);
-    if (!device) {
-      throw new Error(`Device ${deviceId} not connected`);
+    const deviceWs = activeDevices.get(deviceId);
+    
+    if (!deviceWs) {
+      throw new Error("Device not connected.");
     }
 
-    const id = `req-${Math.random().toString(36).substring(2, 11)}`;
+    const toolCallId = `call_${Math.random().toString(36).substring(2, 11)}`;
     const payload = {
       type: 'tool_call',
-      id,
+      id: toolCallId,
       tool: toolName,
-      args,
+      args: args || {},
     };
+
     const payloadString = JSON.stringify(payload);
     const bytesSent = Buffer.byteLength(payloadString, 'utf8');
     analytics.recordRequest(bytesSent);
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.pendingRequests.delete(id);
-        analytics.recordError();
-        analytics.recordAlert(`Timeout waiting for ${toolName} on ${deviceId}`, 'WARNING');
-        reject(new Error(`Timeout waiting for response from ${deviceId} for tool ${toolName}`));
+        if (pendingToolCalls.has(toolCallId)) {
+          pendingToolCalls.delete(toolCallId);
+          analytics.recordError();
+          reject(new Error(`Timeout waiting for response from ${deviceId} for tool ${toolName}`));
+        }
       }, 30000); // 30s timeout
 
-      this.pendingRequests.set(id, { resolve, reject, timeout, startTime: Date.now() });
+      pendingToolCalls.set(toolCallId, { resolve, reject, timeout });
 
-      device.ws.send(payloadString, (err) => {
+      deviceWs.send(payloadString, (err) => {
         if (err) {
           clearTimeout(timeout);
-          this.pendingRequests.delete(id);
+          pendingToolCalls.delete(toolCallId);
           analytics.recordError();
           reject(err);
         }
@@ -99,8 +84,8 @@ export class Bridge {
     });
   }
 
-  getConnectedDevices(): DeviceProfile[] {
-    return Array.from(this.connections.values()).map(({ ws, ...profile }) => profile);
+  getConnectedDevices(): string[] {
+    return Array.from(activeDevices.keys());
   }
 
   broadcastAnalytics() {
@@ -108,9 +93,10 @@ export class Bridge {
       type: "analytics_update",
       data: analytics.getSummary()
     });
-    for (const device of this.connections.values()) {
-      if (device.ws.readyState === WebSocket.OPEN) {
-        device.ws.send(payload);
+
+    for (const ws of activeDevices.values()) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(payload);
       }
     }
   }

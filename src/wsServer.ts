@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
-import { bridge, DeviceProfile } from './bridge';
+import { bridge } from './bridge';
 
 export function setupWsServer(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -15,15 +15,7 @@ export function setupWsServer(server: Server) {
         if (data.type === 'register') {
           if (data.deviceId) {
             registeredDeviceId = data.deviceId;
-            const profile: DeviceProfile = {
-              secretId: data.secretId,
-              deviceId: data.deviceId,
-              name: data.deviceName || data.name || 'Unknown Device',
-              os: data.os,
-              ip: data.ip,
-              capabilities: data.capabilities
-            };
-            bridge.registerDevice(profile, ws);
+            bridge.registerDevice(data.deviceId, ws);
           } else {
             console.error('Invalid register payload, missing deviceId:', data);
             ws.close();
