@@ -103,6 +103,15 @@ export const tools = [
     },
   },
   {
+    name: "phone.get_screen_text",
+    description: "Extracts all visible text on the current screen, along with the precise coordinates (bounds and center [X, Y]) of each text element. This is an extremely powerful fallback for finding exact coordinates to click on when screenshots are unavailable or failing.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: "phone.back",
     description: "Presses the Android system back button.",
     inputSchema: { type: "object", properties: {} },
