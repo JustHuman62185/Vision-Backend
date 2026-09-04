@@ -1,5 +1,5 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -32,7 +32,8 @@ export function setupMcpServer(app: Express) {
       client_id_issued_at: Math.floor(Date.now() / 1000),
       client_secret_expires_at: 0,
       grant_types: ["authorization_code", "refresh_token"],
-      redirect_uris: req.body.redirect_uris || [],
+      redirect_uris: req.body?.redirect_uris || [],
+      client_name: req.body?.client_name || "Claude Web",
     });
   });
 
@@ -58,77 +59,102 @@ export function setupMcpServer(app: Express) {
     });
   });
 
+  // Bearer token check for /mcp paths
   app.use("/mcp", (req, res, next) => {
     if (req.method === 'OPTIONS') return next();
-    // Allow the mock token (or any token) through
     next();
   });
 
-  const server = new Server(
-    {
-      name: "vision-mcp-bridge",
-      version: "1.0.0",
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
-  );
+  // --- MCP Server Setup (SSE Transport) ---
+  const transports = new Map<string, SSEServerTransport>();
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: tools,
-    };
+  // GET /mcp initiates the SSE connection
+  app.get("/mcp", async (req, res) => {
+    try {
+      // 1. Create a transport for this specific connection
+      const transport = new SSEServerTransport("/mcp/message", res);
+      transports.set(transport.sessionId, transport);
+
+      // 2. Create a fresh MCP Server instance tied to this connection
+      const mcpServer = new Server(
+        {
+          name: "vision-mcp-bridge",
+          version: "1.0.0",
+        },
+        {
+          capabilities: {
+            tools: {},
+          },
+        }
+      );
+
+      // 3. Register handlers for this instance
+      mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+        return { tools: tools };
+      });
+
+      mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+        const { name, arguments: args } = request.params;
+        
+        if (name === 'device.list') {
+          const devices = bridge.getConnectedDevices();
+          return {
+            content: [{ type: "text", text: JSON.stringify(devices, null, 2) }],
+            isError: false,
+          };
+        }
+
+        const deviceId = activeDevices.size > 0 ? activeDevices.keys().next().value : null;
+        if (!deviceId) {
+          throw new Error("No deviceId found and no devices currently connected.");
+        }
+
+        try {
+          const result = await bridge.executeOnDevice(deviceId, name, args);
+          return {
+            content: [{ type: "text", text: typeof result === 'string' ? result : JSON.stringify(result) }],
+            isError: false,
+          };
+        } catch (e: any) {
+          return {
+            content: [{ type: "text", text: `Error executing on device: ${e.message}` }],
+            isError: true,
+          };
+        }
+      });
+
+      // 4. Clean up when connection closes
+      req.on("close", () => {
+        transports.delete(transport.sessionId);
+      });
+
+      // 5. Connect the server to the transport
+      await mcpServer.connect(transport);
+      console.log(`New MCP SSE connection established. Session: ${transport.sessionId}`);
+
+    } catch (error) {
+      console.error("Failed to establish SSE connection", error);
+      if (!res.headersSent) res.status(500).send("Internal Server Error");
+    }
   });
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
+  // POST /mcp/message handles all incoming JSON-RPC messages for an established session
+  app.post("/mcp/message", async (req, res) => {
+    const sessionId = req.query.sessionId as string;
+    const transport = transports.get(sessionId);
     
-    if (name === 'device.list') {
-      const devices = bridge.getConnectedDevices();
-      return {
-        content: [{ type: "text", text: JSON.stringify(devices, null, 2) }],
-        isError: false,
-      };
-    }
-
-    const deviceId = activeDevices.size > 0 ? activeDevices.keys().next().value : null;
-    if (!deviceId) {
-      throw new Error("No deviceId found and no devices currently connected.");
+    if (!transport) {
+      res.status(404).json({ error: "Session not found or expired" });
+      return;
     }
 
     try {
-      const result = await bridge.executeOnDevice(deviceId, name, args);
-      return {
-        content: [{ type: "text", text: typeof result === 'string' ? result : JSON.stringify(result) }],
-        isError: false,
-      };
-    } catch (e: any) {
-      return {
-        content: [{ type: "text", text: `Error executing on device: ${e.message}` }],
-        isError: true,
-      };
+      await transport.handlePostMessage(req, res);
+    } catch (error) {
+      console.error("Error handling POST message:", error);
+      if (!res.headersSent) res.status(500).json({ error: "Internal error processing message" });
     }
   });
 
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID()
-  });
-
-  server.connect(transport).then(() => {
-    console.log("MCP Streamable HTTP Server connected to transport");
-  }).catch((err) => {
-    console.error("Failed to connect MCP server to transport", err);
-  });
-
-  app.post("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res, req.body);
-  });
-
-  app.get("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res);
-  });
-
-  console.log('MCP Streamable HTTP Server endpoints attached at /mcp with Bearer Auth');
+  console.log('MCP SSE Server endpoints attached at GET /mcp and POST /mcp/message');
 }
